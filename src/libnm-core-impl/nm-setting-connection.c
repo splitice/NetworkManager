@@ -79,7 +79,7 @@ NM_GOBJECT_PROPERTIES_DEFINE(NMSettingConnection,
                              PROP_MUD_URL,
                              PROP_WAIT_ACTIVATION_DELAY,
                              PROP_DOWN_ON_POWEROFF,
-                             PROP_BCRM_RESET, );
+                             PROP_BRCM_RESET, );
 
 typedef struct {
     GArray     *permissions;
@@ -115,7 +115,7 @@ typedef struct {
     guint32     ip_ping_timeout;
     bool        autoconnect;
     bool        read_only;
-    bool        bcrm_reset;
+    bool        brcm_reset;
 } NMSettingConnectionPrivate;
 
 /**
@@ -861,22 +861,22 @@ nm_setting_connection_get_down_on_poweroff(NMSettingConnection *setting)
 }
 
 /**
- * nm_setting_connection_get_bcrm_reset:
+ * nm_setting_connection_get_brcm_reset:
  * @setting: the #NMSettingConnection
  *
- * Returns the %NM_SETTING_CONNECTION_BCRM_RESET property.
+ * Returns the %NM_SETTING_CONNECTION_BRCM_RESET property.
  *
- * Returns: %TRUE if the connection should reset the BCRM SDIO interface
+ * Returns: %TRUE if the connection should reset the BRCM SDIO interface
  * after 5 consecutive connection failures, %FALSE otherwise.
  *
  * Since: 1.48
  */
 gboolean
-nm_setting_connection_get_bcrm_reset(NMSettingConnection *setting)
+nm_setting_connection_get_brcm_reset(NMSettingConnection *setting)
 {
     g_return_val_if_fail(NM_IS_SETTING_CONNECTION(setting), FALSE);
 
-    return NM_SETTING_CONNECTION_GET_PRIVATE(setting)->bcrm_reset;
+    return NM_SETTING_CONNECTION_GET_PRIVATE(setting)->brcm_reset;
 }
 
 /**
@@ -3698,10 +3698,10 @@ nm_setting_connection_class_init(NMSettingConnectionClass *klass)
                                             down_on_poweroff);
 
     /**
-     * NMSettingConnection:bcrm-reset:
+     * NMSettingConnection:brcm-reset:
      *
      * If set to %TRUE, when a WiFi connection fails to connect 5 times 
-     * consecutively, NetworkManager will attempt to reset the SDIO BCRM 
+     * consecutively, NetworkManager will attempt to reset the SDIO BRCM 
      * interface by unbinding and rebinding the sunxi-mmc driver before 
      * resuming the connection process.
      *
@@ -3711,12 +3711,12 @@ nm_setting_connection_class_init(NMSettingConnectionClass *klass)
      **/
     _nm_setting_property_define_direct_boolean(properties_override,
                                                obj_properties,
-                                               NM_SETTING_CONNECTION_BCRM_RESET,
-                                               PROP_BCRM_RESET,
+                                               NM_SETTING_CONNECTION_BRCM_RESET,
+                                               PROP_BRCM_RESET,
                                                FALSE,
                                                NM_SETTING_PARAM_NONE,
                                                NMSettingConnectionPrivate,
-                                               bcrm_reset);
+                                               brcm_reset);
 
     g_object_class_install_properties(object_class, _PROPERTY_ENUMS_LAST, obj_properties);
 

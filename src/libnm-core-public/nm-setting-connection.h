@@ -69,7 +69,7 @@ G_BEGIN_DECLS
 #define NM_SETTING_CONNECTION_IP_PING_TIMEOUT               "ip-ping-timeout"
 #define NM_SETTING_CONNECTION_IP_PING_ADDRESSES             "ip-ping-addresses"
 #define NM_SETTING_CONNECTION_IP_PING_ADDRESSES_REQUIRE_ALL "ip-ping-addresses-require-all"
-#define NM_SETTING_CONNECTION_BCRM_RESET                    "bcrm-reset"
+#define NM_SETTING_CONNECTION_BRCM_RESET                    "brcm-reset"
 
 /* Types for property values */
 /**
@@ -300,7 +300,7 @@ NMSettingConnectionDownOnPoweroff
 nm_setting_connection_get_down_on_poweroff(NMSettingConnection *setting);
 
 NM_AVAILABLE_IN_1_48
-gboolean nm_setting_connection_get_bcrm_reset(NMSettingConnection *setting);
+gboolean nm_setting_connection_get_brcm_reset(NMSettingConnection *setting);
 
 NM_AVAILABLE_IN_1_26
 const char *nm_setting_connection_get_mud_url(NMSettingConnection *setting);

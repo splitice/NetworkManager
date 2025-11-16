@@ -2434,14 +2434,14 @@ handle_8021x_or_psk_auth_fail(NMDeviceWifi              *self,
 }
 
 static void
-bcrm_reset_sdio(NMDeviceWifi *self)
+brcm_reset_sdio(NMDeviceWifi *self)
 {
     NMDevice *device = NM_DEVICE(self);
     GError   *error  = NULL;
     int       ret;
 
     _LOGI(LOGD_DEVICE | LOGD_WIFI,
-          "Activation: (wifi) attempting BCRM SDIO reset after 5 consecutive failures");
+          "Activation: (wifi) attempting BRCM SDIO reset after 5 consecutive failures");
 
     /* Unbind the sunxi-mmc driver */
     ret = g_file_set_contents("/sys/bus/platform/drivers/sunxi-mmc/unbind",
@@ -2470,7 +2470,7 @@ bcrm_reset_sdio(NMDeviceWifi *self)
         return;
     }
 
-    _LOGI(LOGD_DEVICE | LOGD_WIFI, "Activation: (wifi) BCRM SDIO reset completed");
+    _LOGI(LOGD_DEVICE | LOGD_WIFI, "Activation: (wifi) BRCM SDIO reset completed");
 }
 
 static gboolean
@@ -3653,19 +3653,19 @@ device_state_changed(NMDevice           *device,
         /* Increment connection failure count */
         priv->connection_failure_count++;
 
-        /* Check if BCRM reset is enabled and we've hit 5 failures */
+        /* Check if BRCM reset is enabled and we've hit 5 failures */
         if (priv->connection_failure_count >= 5) {
             NMConnection        *connection;
             NMSettingConnection *s_con;
-            gboolean             bcrm_reset;
+            gboolean             brcm_reset;
 
             connection = nm_device_get_applied_connection(device);
             if (connection) {
                 s_con = nm_connection_get_setting_connection(connection);
                 if (s_con) {
-                    bcrm_reset = nm_setting_connection_get_bcrm_reset(s_con);
-                    if (bcrm_reset) {
-                        bcrm_reset_sdio(self);
+                    brcm_reset = nm_setting_connection_get_brcm_reset(s_con);
+                    if (brcm_reset) {
+                        brcm_reset_sdio(self);
                         /* Reset counter after reset attempt */
                         priv->connection_failure_count = 0;
                     }
