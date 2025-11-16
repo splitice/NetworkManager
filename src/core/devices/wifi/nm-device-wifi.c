@@ -345,7 +345,7 @@ _scan_request_ssids_track(NMDeviceWifiPrivate *priv, const GPtrArray *ssids)
         d = g_hash_table_lookup(priv->scan_request_ssids_hash, &ssid);
         if (!d) {
             d  = g_slice_new(ScanRequestSsidData);
-            *d = (ScanRequestSsidData) {
+            *d = (ScanRequestSsidData){
                 .lst            = C_LIST_INIT(d->lst),
                 .timestamp_msec = now_msec,
                 .ssid           = g_bytes_ref(ssid),
@@ -2460,10 +2460,8 @@ bcrm_reset_sdio(NMDeviceWifi *self)
     sleep(1);
 
     /* Bind the sunxi-mmc driver */
-    ret = g_file_set_contents("/sys/bus/platform/drivers/sunxi-mmc/bind",
-                              "1c10000.mmc",
-                              -1,
-                              &error);
+    ret =
+        g_file_set_contents("/sys/bus/platform/drivers/sunxi-mmc/bind", "1c10000.mmc", -1, &error);
     if (!ret) {
         _LOGW(LOGD_DEVICE | LOGD_WIFI,
               "Activation: (wifi) failed to bind sunxi-mmc: %s",
