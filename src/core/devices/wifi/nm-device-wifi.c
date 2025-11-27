@@ -122,6 +122,8 @@ typedef struct {
     _NM80211Mode     mode;
 
     guint32 failed_iface_count;
+    guint32 connection_failure_count;
+    guint64 all_connection_failure_count;
     gint32  hw_addr_scan_expire;
 
     guint32 rate;
@@ -289,6 +291,22 @@ _scan_request_ssids_remove_all(NMDeviceWifiPrivate *priv,
         nm_clear_pointer(&priv->scan_request_ssids_hash, g_hash_table_destroy);
 }
 
+guint32
+nm_device_wifi_get_connection_failure_count(NMDeviceWifi *device)
+{
+    g_return_val_if_fail(NM_IS_DEVICE_WIFI(device), 0);
+    return NM_DEVICE_WIFI_GET_PRIVATE(device)->connection_failure_count;
+}
+
+/* Helper used by core NMDevice get_property to expose failures over D-Bus */
+guint32
+_nm_device_get_failures_for_device(NMDevice *device)
+{
+    if (NM_IS_DEVICE_WIFI(device))
+        return nm_device_wifi_get_connection_failure_count(NM_DEVICE_WIFI(device));
+    return 0;
+}
+
 static GPtrArray *
 _scan_request_ssids_fetch(NMDeviceWifiPrivate *priv, gint64 now_msec)
 {
@@ -341,7 +359,7 @@ _scan_request_ssids_track(NMDeviceWifiPrivate *priv, const GPtrArray *ssids)
         d = g_hash_table_lookup(priv->scan_request_ssids_hash, &ssid);
         if (!d) {
             d  = g_slice_new(ScanRequestSsidData);
-            *d = (ScanRequestSsidData) {
+            *d = (ScanRequestSsidData){
                 .lst            = C_LIST_INIT(d->lst),
                 .timestamp_msec = now_msec,
                 .ssid           = g_bytes_ref(ssid),
@@ -2422,6 +2440,46 @@ handle_8021x_or_psk_auth_fail(NMDeviceWifi              *self,
     return handled;
 }
 
+static void
+brcm_reset_sdio(NMDeviceWifi *self)
+{
+    NMDevice *device = NM_DEVICE(self);
+    GError   *error  = NULL;
+    int       ret;
+
+    _LOGI(LOGD_DEVICE | LOGD_WIFI,
+          "Activation: (wifi) attempting BRCM SDIO reset after 5 consecutive failures");
+
+    /* Unbind the sunxi-mmc driver */
+    ret = g_file_set_contents("/sys/bus/platform/drivers/sunxi-mmc/unbind",
+                              "1c10000.mmc",
+                              -1,
+                              &error);
+    if (!ret) {
+        _LOGW(LOGD_DEVICE | LOGD_WIFI,
+              "Activation: (wifi) failed to unbind sunxi-mmc: %s",
+              error ? error->message : "unknown error");
+        g_clear_error(&error);
+        return;
+    }
+
+    /* Wait 1 second */
+    sleep(1);
+
+    /* Bind the sunxi-mmc driver */
+    ret =
+        g_file_set_contents("/sys/bus/platform/drivers/sunxi-mmc/bind", "1c10000.mmc", -1, &error);
+    if (!ret) {
+        _LOGW(LOGD_DEVICE | LOGD_WIFI,
+              "Activation: (wifi) failed to bind sunxi-mmc: %s",
+              error ? error->message : "unknown error");
+        g_clear_error(&error);
+        return;
+    }
+
+    _LOGI(LOGD_DEVICE | LOGD_WIFI, "Activation: (wifi) BRCM SDIO reset completed");
+}
+
 static gboolean
 reacquire_interface_cb(gpointer user_data)
 {
@@ -3565,10 +3623,61 @@ device_state_changed(NMDevice           *device,
         _indicate_addressing_running_reset(self);
         break;
     case NM_DEVICE_STATE_ACTIVATED:
+        /* Reset connection failure count on successful activation */
+        priv->connection_failure_count = 0;
+        /* Note: do NOT reset all_connection_failure_count on success */
         activation_success_handler(device);
         break;
     case NM_DEVICE_STATE_FAILED:
         _indicate_addressing_running_reset(self);
+        /* Increment connection failure count */
+        priv->connection_failure_count++;
+    /* Increment all-time failure counter */
+    priv->all_connection_failure_count++;
+
+        /* Check if BRCM reset is enabled and we've hit 5 failures */
+        if (priv->connection_failure_count >= 5) {
+            NMConnection        *connection;
+
+/* Return all-time failure counter */
+guint64
+nm_device_wifi_get_all_connection_failure_count(NMDeviceWifi *device)
+{
+    g_return_val_if_fail(NM_IS_DEVICE_WIFI(device), 0);
+    return NM_DEVICE_WIFI_GET_PRIVATE(device)->all_connection_failure_count;
+}
+
+void
+nm_device_wifi_clear_all_connection_failure_count(NMDeviceWifi *device)
+{
+    g_return_if_fail(NM_IS_DEVICE_WIFI(device));
+    NM_DEVICE_WIFI_GET_PRIVATE(device)->all_connection_failure_count = 0;
+}
+            NMSettingConnection *s_con;
+            gboolean             brcm_reset;
+
+            connection = nm_device_get_applied_connection(device);
+            if (connection) {
+                s_con = nm_connection_get_setting_connection(connection);
+                if (s_con) {
+
+/* Helper used by core NMDevice get_property to expose all-failures over D-Bus */
+guint64
+_nm_device_get_all_failures_for_device(NMDevice *device)
+{
+    if (NM_IS_DEVICE_WIFI(device))
+        return nm_device_wifi_get_all_connection_failure_count(NM_DEVICE_WIFI(device));
+    return 0;
+}
+                    brcm_reset = nm_setting_connection_get_brcm_reset(s_con);
+                    if (brcm_reset) {
+                        brcm_reset_sdio(self);
+                        /* Reset counter after reset attempt */
+                        priv->connection_failure_count = 0;
+                    }
+                }
+            }
+        }
         break;
     case NM_DEVICE_STATE_DISCONNECTED:
         break;

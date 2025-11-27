@@ -390,6 +390,8 @@ NM_GOBJECT_PROPERTIES_DEFINE(NMDevice,
                              PROP_METERED,
                              PROP_LLDP_NEIGHBORS,
                              PROP_REAL,
+                             PROP_FAILURES,
+                             PROP_ALL_FAILURES,
                              PROP_SLAVES,
                              PROP_STATISTICS_REFRESH_RATE_MS,
                              PROP_STATISTICS_TX_BYTES,
@@ -14854,6 +14856,11 @@ nm_device_disconnect_active_connection(NMActiveConnection           *active,
                 nm_device_managed_type_set(self, NM_DEVICE_MANAGED_TYPE_FULL);
 
             nm_device_state_changed(self, NM_DEVICE_STATE_DEACTIVATING, device_reason);
+            /* If this was a user-requested deactivate (manual up/down), clear the all-failures counter for Wi-Fi devices */
+            if (device_reason == NM_DEVICE_STATE_REASON_USER_REQUESTED) {
+                if (NM_IS_DEVICE_WIFI(self))
+                    nm_device_wifi_clear_all_connection_failure_count(NM_DEVICE_WIFI(self));
+            }
         } else {
             /* @active is the current ac of @self, but it's going down already.
              * Nothing to do. */
@@ -19148,6 +19155,14 @@ get_property(GObject *object, guint prop_id, GValue *value, GParamSpec *pspec)
     case PROP_METERED:
         g_value_set_uint(value, priv->metered);
         break;
+    case PROP_FAILURES:
+        /* Expose Wi-Fi connection failure counter; zero for non-WiFi devices */
+        g_value_set_uint(value, _nm_device_get_failures_for_device(self));
+        break;
+    case PROP_ALL_FAILURES:
+        /* Expose Wi-Fi all-time failure counter (uint64); zero for non-WiFi devices */
+        g_value_set_uint64(value, _nm_device_get_all_failures_for_device(self));
+        break;
     case PROP_LLDP_NEIGHBORS:
         g_value_set_variant(value,
                             priv->lldp_listener
@@ -19637,6 +19652,8 @@ static const NMDBusInterfaceInfoExtended interface_info_device = {
                                                            NM_DEVICE_PHYSICAL_PORT_ID),
             NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("Mtu", "u", NM_DEVICE_MTU),
             NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("Metered", "u", NM_DEVICE_METERED),
+            NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("Failures", "u", NM_DEVICE_FAILURES),
+            NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("AllFailures", "t", NM_DEVICE_ALL_FAILURES),
             NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("LldpNeighbors",
                                                            "aa{sv}",
                                                            NM_DEVICE_LLDP_NEIGHBORS),
@@ -19653,6 +19670,14 @@ static const NMDBusInterfaceInfoExtended interface_info_device = {
             NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("HwAddress", "s", NM_DEVICE_HW_ADDRESS),
             NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("Ports", "ao", NM_DEVICE_PORTS), ), ),
 };
+
+/* Forward declaration for wifi helper that provides failures count for a device. */
+guint32 _nm_device_get_failures_for_device(NMDevice *device);
+/* Forward declaration for wifi helper that provides all-failures count for a device. */
+guint64 _nm_device_get_all_failures_for_device(NMDevice *device);
+/* Forward declaration to clear all-failures on wifi device (user action). */
+typedef struct _NMDeviceWifi NMDeviceWifi;
+void nm_device_wifi_clear_all_connection_failure_count(NMDeviceWifi *device);
 
 static const NMDBusInterfaceInfoExtended interface_info_device_statistics = {
     .parent = NM_DEFINE_GDBUS_INTERFACE_INFO_INIT(
@@ -19928,6 +19953,20 @@ nm_device_class_init(NMDeviceClass *klass)
                                                      G_MAXUINT32,
                                                      NM_METERED_UNKNOWN,
                                                      G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+    obj_properties[PROP_FAILURES] = g_param_spec_uint(NM_DEVICE_FAILURES,
+                                                     "",
+                                                     "",
+                                                     0,
+                                                     G_MAXUINT32,
+                                                     0,
+                                                     G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+    obj_properties[PROP_ALL_FAILURES] = g_param_spec_uint64(NM_DEVICE_ALL_FAILURES,
+                                                           "",
+                                                           "",
+                                                           0,
+                                                           G_MAXUINT64,
+                                                           0,
+                                                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
     obj_properties[PROP_LLDP_NEIGHBORS] =
         g_param_spec_variant(NM_DEVICE_LLDP_NEIGHBORS,
                              "",

@@ -55,6 +55,8 @@
 #define NM_DEVICE_METERED        "metered"
 #define NM_DEVICE_LLDP_NEIGHBORS "lldp-neighbors"
 #define NM_DEVICE_REAL           "real"
+#define NM_DEVICE_FAILURES       "failures"
+#define NM_DEVICE_ALL_FAILURES   "all-failures"
 
 /* "parent" is exposed on D-Bus by subclasses like NMDeviceIPTunnel */
 #define NM_DEVICE_PARENT "parent"

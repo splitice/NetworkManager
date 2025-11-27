@@ -57,6 +57,8 @@ NM_GOBJECT_PROPERTIES_DEFINE(NMDevice,
                              PROP_PHYSICAL_PORT_ID,
                              PROP_MTU,
                              PROP_METERED,
+                             PROP_FAILURES,
+                             PROP_ALL_FAILURES,
                              PROP_LLDP_NEIGHBORS,
                              PROP_IP4_CONNECTIVITY,
                              PROP_IP6_CONNECTIVITY,
@@ -105,6 +107,8 @@ typedef struct _NMDevicePrivate {
     guint32           ip4_connectivity;
     guint32           ip6_connectivity;
     guint32           metered;
+    guint32           failures;
+    guint64           all_failures;
     guint32           mtu;
     guint32           state;
     guint32           state_reason;
@@ -453,6 +457,12 @@ get_property(GObject *object, guint prop_id, GValue *value, GParamSpec *pspec)
     case PROP_METERED:
         g_value_set_uint(value, nm_device_get_metered(device));
         break;
+    case PROP_FAILURES:
+        g_value_set_uint(value, nm_device_get_failures(device));
+        break;
+    case PROP_ALL_FAILURES:
+        g_value_set_uint64(value, nm_device_get_all_failures(device));
+        break;
     case PROP_LLDP_NEIGHBORS:
         g_value_set_boxed(value, nm_device_get_lldp_neighbors(device));
         break;
@@ -592,6 +602,8 @@ const NMLDBusMetaIface _nml_dbus_meta_iface_nm_device = NML_DBUS_META_IFACE_INIT
                                         _notify_update_prop_lldp_neighbors),
         NML_DBUS_META_PROPERTY_INIT_B("Managed", PROP_MANAGED, NMDevicePrivate, managed),
         NML_DBUS_META_PROPERTY_INIT_U("Metered", PROP_METERED, NMDevicePrivate, metered),
+    NML_DBUS_META_PROPERTY_INIT_U("Failures", PROP_FAILURES, NMDevicePrivate, failures),
+    NML_DBUS_META_PROPERTY_INIT_T("AllFailures", PROP_ALL_FAILURES, NMDevicePrivate, all_failures),
         NML_DBUS_META_PROPERTY_INIT_U("Mtu", PROP_MTU, NMDevicePrivate, mtu),
         NML_DBUS_META_PROPERTY_INIT_B("NmPluginMissing",
                                       PROP_NM_PLUGIN_MISSING,
@@ -2286,6 +2298,24 @@ nm_device_get_mtu(NMDevice *device)
     g_return_val_if_fail(NM_IS_DEVICE(device), 0);
 
     return NM_DEVICE_GET_PRIVATE(device)->mtu;
+}
+
+guint32
+nm_device_get_failures(NMDevice *device)
+{
+    g_return_val_if_fail(NM_IS_DEVICE(device), 0);
+
+    /* For client-side convenience, return stored failures value. */
+    return NM_DEVICE_GET_PRIVATE(device)->failures;
+}
+
+guint64
+nm_device_get_all_failures(NMDevice *device)
+{
+    g_return_val_if_fail(NM_IS_DEVICE(device), 0);
+
+    /* For client-side convenience, return stored all_failures value. */
+    return NM_DEVICE_GET_PRIVATE(device)->all_failures;
 }
 
 /**
