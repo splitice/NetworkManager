@@ -33,14 +33,15 @@
 #include "libnm-base/nm-ethtool-base.h"
 #include "libnm-core-aux-intern/nm-common-macros.h"
 #include "nm-device-private.h"
-#include "devices/nm-device-wifi.h"
+/* nm-device-wifi defines the NMDeviceWifi type and helpers; include it so
+ * we can call Wi‑Fi specific helper functions and use NM_IS_DEVICE_WIFI. */
+#include "nm-device-wifi.h"
 
 /* Forward declarations for helpers implemented in device-specific code.
  * These must be visible early because this file calls them before their
  * definitions in other compilation units. */
 guint32 _nm_device_get_failures_for_device(NMDevice *device);
 guint64 _nm_device_get_all_failures_for_device(NMDevice *device);
-void nm_device_wifi_clear_all_connection_failure_count(NMDeviceWifi *device);
 #include "nm-l3cfg.h"
 #include "nm-l3-config-data.h"
 #include "nm-l3-ipv4ll.h"
