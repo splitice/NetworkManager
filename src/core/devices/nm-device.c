@@ -33,6 +33,14 @@
 #include "libnm-base/nm-ethtool-base.h"
 #include "libnm-core-aux-intern/nm-common-macros.h"
 #include "nm-device-private.h"
+#include "devices/nm-device-wifi.h"
+
+/* Forward declarations for helpers implemented in device-specific code.
+ * These must be visible early because this file calls them before their
+ * definitions in other compilation units. */
+guint32 _nm_device_get_failures_for_device(NMDevice *device);
+guint64 _nm_device_get_all_failures_for_device(NMDevice *device);
+void nm_device_wifi_clear_all_connection_failure_count(NMDeviceWifi *device);
 #include "nm-l3cfg.h"
 #include "nm-l3-config-data.h"
 #include "nm-l3-ipv4ll.h"
@@ -19671,13 +19679,7 @@ static const NMDBusInterfaceInfoExtended interface_info_device = {
             NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("Ports", "ao", NM_DEVICE_PORTS), ), ),
 };
 
-/* Forward declaration for wifi helper that provides failures count for a device. */
-guint32 _nm_device_get_failures_for_device(NMDevice *device);
-/* Forward declaration for wifi helper that provides all-failures count for a device. */
-guint64 _nm_device_get_all_failures_for_device(NMDevice *device);
-/* Forward declaration to clear all-failures on wifi device (user action). */
-typedef struct _NMDeviceWifi NMDeviceWifi;
-void nm_device_wifi_clear_all_connection_failure_count(NMDeviceWifi *device);
+/* (forward declarations moved earlier) */
 
 static const NMDBusInterfaceInfoExtended interface_info_device_statistics = {
     .parent = NM_DEFINE_GDBUS_INTERFACE_INFO_INIT(
