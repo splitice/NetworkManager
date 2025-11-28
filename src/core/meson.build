@@ -117,6 +117,7 @@ libNetworkManager = static_library(
     'devices/nm-device-vxlan.c',
     'devices/nm-device-wireguard.c',
     'devices/nm-device-wpan.c',
+  'devices/nm-device-wifi-shim.c',
     'devices/nm-lldp-listener.c',
     'dhcp/nm-dhcp-dhclient.c',
     'dhcp/nm-dhcp-dhclient-utils.c',
