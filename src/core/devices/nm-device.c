@@ -42,6 +42,8 @@
  * definitions in other compilation units. */
 guint32 _nm_device_get_failures_for_device(NMDevice *device);
 guint64 _nm_device_get_all_failures_for_device(NMDevice *device);
+/* Forward-declare wifi-specific helper used when clearing the all-failures counter. */
+void nm_device_wifi_clear_all_connection_failure_count(NMDeviceWifi *device);
 #include "nm-l3cfg.h"
 #include "nm-l3-config-data.h"
 #include "nm-l3-ipv4ll.h"
@@ -14867,8 +14869,12 @@ nm_device_disconnect_active_connection(NMActiveConnection           *active,
             nm_device_state_changed(self, NM_DEVICE_STATE_DEACTIVATING, device_reason);
             /* If this was a user-requested deactivate (manual up/down), clear the all-failures counter for Wi-Fi devices */
             if (device_reason == NM_DEVICE_STATE_REASON_USER_REQUESTED) {
-                if (NM_IS_DEVICE_WIFI(self))
-                    nm_device_wifi_clear_all_connection_failure_count(NM_DEVICE_WIFI(self));
+                /* Avoid relying on device-type specific macros here; use the
+                 * device-type accessor so this compiles even if the wifi
+                 * macros are not visible to the compiler for some build
+                 * configurations. */
+                if (nm_device_get_device_type(self) == NM_DEVICE_TYPE_WIFI)
+                    nm_device_wifi_clear_all_connection_failure_count((NMDeviceWifi *) self);
             }
         } else {
             /* @active is the current ac of @self, but it's going down already.
@@ -19212,7 +19218,7 @@ get_property(GObject *object, guint prop_id, GValue *value, GParamSpec *pspec)
 static void
 set_property(GObject *object, guint prop_id, const GValue *value, GParamSpec *pspec)
 {
-    NMDevice        *self = (NMDevice *) object;
+    NMDevice        *self = NM_DEVICE(object);
     NMDevicePrivate *priv = NM_DEVICE_GET_PRIVATE(self);
 
     switch (prop_id) {
