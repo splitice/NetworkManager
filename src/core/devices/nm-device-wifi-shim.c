@@ -7,12 +7,26 @@
  * have the same symbol names), so this shim is a build-time bridge.
  */
 
-#include "devices/nm-device.h"
-#include "devices/wifi/nm-device-wifi.h"
-#include "nm-logging.h"
+#include "src/core/nm-default-daemon.h"
+#include "wifi/nm-device-wifi.h"
+
+#include "nm-device.h"
+
+/* Forward declarations to avoid pulling heavy public headers into this shim.
+ * The shim only needs the types for function signatures. The real
+ * implementations live in the wifi plugin and will be linked in when
+ * the plugin objects are included in the final binary. */
+typedef struct _NMDevice NMDevice;
+typedef struct _NMDeviceWifi NMDeviceWifi;
 
 /* Log a single warning if any shim function is ever used at runtime. */
 static gboolean shim_warned = FALSE;
+
+#if defined(__GNUC__)
+#define NM_SHIM_WEAK __attribute__((weak))
+#else
+#define NM_SHIM_WEAK
+#endif
 
 /* Return number of recent connection failures for this device.
  * If device is a wifi device we would prefer to use the wifi
@@ -21,7 +35,7 @@ static gboolean shim_warned = FALSE;
  * fallback that returns 0.
  */
 guint32
-_nm_device_get_failures_for_device(NMDevice *device)
+_nm_device_get_failures_for_device(NMDevice *device) NM_SHIM_WEAK
 {
     /* If desired, we could try to call an exported wifi helper here,
      * but that would reintroduce the unresolved-symbol problem when
@@ -40,7 +54,7 @@ _nm_device_get_failures_for_device(NMDevice *device)
  * Fallback returns 0.
  */
 guint64
-_nm_device_get_all_failures_for_device(NMDevice *device)
+_nm_device_get_all_failures_for_device(NMDevice *device) NM_SHIM_WEAK
 {
     (void) device;
     if (!shim_warned) {
@@ -53,7 +67,7 @@ _nm_device_get_all_failures_for_device(NMDevice *device)
 
 /* Clear the wifi device all-connection-failures counter. No-op fallback. */
 void
-nm_device_wifi_clear_all_connection_failure_count(NMDeviceWifi *device)
+nm_device_wifi_clear_all_connection_failure_count(NMDeviceWifi *device) NM_SHIM_WEAK
 {
     (void) device;
     if (!shim_warned) {
