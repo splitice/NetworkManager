@@ -34,8 +34,10 @@
 #include "libnm-core-aux-intern/nm-common-macros.h"
 #include "nm-device-private.h"
 /* nm-device-wifi defines the NMDeviceWifi type and helpers; include it so
- * we can call Wi‑Fi specific helper functions and use NM_IS_DEVICE_WIFI. */
-#include "nm-device-wifi.h"
+ * we can call Wi‑Fi specific helper functions and use NM_IS_DEVICE_WIFI.
+ * Use a path relative to this directory so the header is found regardless
+ * of the compiler's include search paths. */
+#include "wifi/nm-device-wifi.h"
 
 /* Forward declarations for helpers implemented in device-specific code.
  * These must be visible early because this file calls them before their
