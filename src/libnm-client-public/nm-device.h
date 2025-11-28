@@ -190,9 +190,11 @@ NM_AVAILABLE_IN_1_22
 NMDeviceInterfaceFlags nm_device_get_interface_flags(NMDevice *device);
 
 /* Number of recent connection failures (Wi-Fi specific). */
+NM_AVAILABLE_IN_1_54
 guint32 nm_device_get_failures(NMDevice *device);
 
 /* Number of all-time connection failures (Wi-Fi specific). */
+NM_AVAILABLE_IN_1_54
 guint64 nm_device_get_all_failures(NMDevice *device);
 
 char **nm_device_disambiguate_names(NMDevice **devices, int num_devices);
