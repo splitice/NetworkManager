@@ -52,8 +52,4 @@ void nm_device_wifi_scanning_prohibited_track(NMDeviceWifi *self,
 
 /* Return number of recent connection failures for this wifi device. */
 guint32 nm_device_wifi_get_connection_failure_count(NMDeviceWifi *device);
-/* Return total number of connection failures for this wifi device (all time). */
-guint64 nm_device_wifi_get_all_connection_failure_count(NMDeviceWifi *device);
-/* Clear the all-connection-failures counter (used on manual user deactivation). */
-void nm_device_wifi_clear_all_connection_failure_count(NMDeviceWifi *device);
 #endif /* __NETWORKMANAGER_DEVICE_WIFI_H__ */

@@ -227,19 +227,32 @@ wifi_get_failures(NMDevice *device)
 static guint64
 wifi_get_all_failures(NMDevice *device)
 {
+    NMDeviceWifi        *self;
+    NMDeviceWifiPrivate *priv;
+
     if (!NM_IS_DEVICE_WIFI(device))
         return 0;
 
-    return nm_device_wifi_get_all_connection_failure_count(NM_DEVICE_WIFI(device));
+    self = NM_DEVICE_WIFI(device);
+    priv = NM_DEVICE_WIFI_GET_PRIVATE(self);
+
+    return priv->all_connection_failure_count;
 }
 
 static void
 wifi_clear_all_failures(NMDevice *device)
 {
+    NMDeviceWifi        *self;
+    NMDeviceWifiPrivate *priv;
+
     if (!NM_IS_DEVICE_WIFI(device))
         return;
 
-    nm_device_wifi_clear_all_connection_failure_count(NM_DEVICE_WIFI(device));
+    self = NM_DEVICE_WIFI(device);
+    priv = NM_DEVICE_WIFI_GET_PRIVATE(self);
+
+    /* explicit reset of ALL-FAILURES on user-requested disconnects */
+    priv->all_connection_failure_count = 0;
 }
 
 /*****************************************************************************/
