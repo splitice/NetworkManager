@@ -33,19 +33,9 @@
 #include "libnm-base/nm-ethtool-base.h"
 #include "libnm-core-aux-intern/nm-common-macros.h"
 #include "nm-device-private.h"
-/* nm-device-wifi defines the NMDeviceWifi type and helpers; include it so
- * we can call Wi‑Fi specific helper functions and use NM_IS_DEVICE_WIFI.
- * Use a path relative to this directory so the header is found regardless
- * of the compiler's include search paths. */
-#include "wifi/nm-device-wifi.h"
-
-/* Forward declarations for helpers implemented in device-specific code.
- * These must be visible early because this file calls them before their
- * definitions in other compilation units. */
-guint32 _nm_device_get_failures_for_device(NMDevice *device);
-guint64 _nm_device_get_all_failures_for_device(NMDevice *device);
-/* Forward-declare wifi-specific helper used when clearing the all-failures counter. */
-void nm_device_wifi_clear_all_connection_failure_count(NMDeviceWifi *device);
+/* Failure counters are provided via virtual methods on NMDeviceClass.
+ * Individual device types (such as Wi-Fi) can override the virtuals to
+ * expose device-specific statistics. The base implementation returns 0. */
 #include "nm-l3cfg.h"
 #include "nm-l3-config-data.h"
 #include "nm-l3-ipv4ll.h"
@@ -19173,13 +19163,23 @@ get_property(GObject *object, guint prop_id, GValue *value, GParamSpec *pspec)
         g_value_set_uint(value, priv->metered);
         break;
     case PROP_FAILURES:
-        /* Expose Wi-Fi connection failure counter; zero for non-WiFi devices */
-        g_value_set_uint(value, _nm_device_get_failures_for_device(self));
+    {
+        NMDeviceClass *klass = NM_DEVICE_GET_CLASS(self);
+
+        /* Per-device recent failure counter; if the device type doesn't
+         * implement the virtual, expose 0 by default. */
+        g_value_set_uint(value, klass->get_failures ? klass->get_failures(self) : 0);
         break;
     case PROP_ALL_FAILURES:
-        /* Expose Wi-Fi all-time failure counter (uint64); zero for non-WiFi devices */
-        g_value_set_uint64(value, _nm_device_get_all_failures_for_device(self));
+    {
+        NMDeviceClass *klass = NM_DEVICE_GET_CLASS(self);
+
+        /* Per-device all-time failure counter (uint64); defaults to 0 for
+         * device types that don't track this statistic. */
+        g_value_set_uint64(value,
+                           klass->get_all_failures ? klass->get_all_failures(self) : 0);
         break;
+    }
     case PROP_LLDP_NEIGHBORS:
         g_value_set_variant(value,
                             priv->lldp_listener
@@ -19749,6 +19749,13 @@ nm_device_class_init(NMDeviceClass *klass)
     klass->can_reapply_change            = can_reapply_change;
     klass->reapply_connection            = reapply_connection;
     klass->set_platform_mtu              = set_platform_mtu;
+
+    /* Default failure counters: devices that don't track failures simply
+     * report 0. Specific device types (such as Wi-Fi) can override these
+     * virtuals in their class_init to expose device-specific statistics.
+     */
+    klass->get_failures     = NULL;
+    klass->get_all_failures = NULL;
 
     klass->rfkill_type = NM_RFKILL_TYPE_UNKNOWN;
 

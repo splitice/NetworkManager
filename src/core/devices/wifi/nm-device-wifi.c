@@ -209,6 +209,28 @@ static void _scan_kickoff(NMDeviceWifi *self);
 
 static gboolean _scan_notify_allowed(NMDeviceWifi *self, NMTernary do_kickoff);
 
+static guint32 wifi_get_failures(NMDevice *device);
+
+static guint64 wifi_get_all_failures(NMDevice *device);
+
+static guint32
+wifi_get_failures(NMDevice *device)
+{
+    if (!NM_IS_DEVICE_WIFI(device))
+        return 0;
+
+    return nm_device_wifi_get_connection_failure_count(NM_DEVICE_WIFI(device));
+}
+
+static guint64
+wifi_get_all_failures(NMDevice *device)
+{
+    if (!NM_IS_DEVICE_WIFI(device))
+        return 0;
+
+    return nm_device_wifi_get_all_connection_failure_count(NM_DEVICE_WIFI(device));
+}
+
 /*****************************************************************************/
 
 typedef struct {
@@ -296,15 +318,6 @@ nm_device_wifi_get_connection_failure_count(NMDeviceWifi *device)
 {
     g_return_val_if_fail(NM_IS_DEVICE_WIFI(device), 0);
     return NM_DEVICE_WIFI_GET_PRIVATE(device)->connection_failure_count;
-}
-
-/* Helper used by core NMDevice get_property to expose failures over D-Bus */
-guint32
-_nm_device_get_failures_for_device(NMDevice *device)
-{
-    if (NM_IS_DEVICE_WIFI(device))
-        return nm_device_wifi_get_connection_failure_count(NM_DEVICE_WIFI(device));
-    return 0;
 }
 
 static GPtrArray *
@@ -3661,14 +3674,6 @@ nm_device_wifi_clear_all_connection_failure_count(NMDeviceWifi *device)
                 s_con = nm_connection_get_setting_connection(connection);
                 if (s_con) {
 
-/* Helper used by core NMDevice get_property to expose all-failures over D-Bus */
-guint64
-_nm_device_get_all_failures_for_device(NMDevice *device)
-{
-    if (NM_IS_DEVICE_WIFI(device))
-        return nm_device_wifi_get_all_connection_failure_count(NM_DEVICE_WIFI(device));
-    return 0;
-}
                     brcm_reset = nm_setting_connection_get_brcm_reset(s_con);
                     if (brcm_reset) {
                         brcm_reset_sdio(self);
@@ -3993,6 +3998,13 @@ nm_device_wifi_class_init(NMDeviceWifiClass *klass)
     device_class->unmanaged_on_quit        = unmanaged_on_quit;
     device_class->can_reapply_change       = can_reapply_change;
     device_class->reapply_connection       = reapply_connection;
+
+    /* Expose Wi-Fi specific connection failure statistics via the generic
+     * NMDevice virtuals so that the core can read them without depending
+     * on global helper symbols or Wi-Fi being built into the main binary.
+     */
+    device_class->get_failures     = wifi_get_failures;
+    device_class->get_all_failures = wifi_get_all_failures;
 
     device_class->state_changed = device_state_changed;
 

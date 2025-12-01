@@ -431,6 +431,16 @@ typedef struct _NMDeviceClass {
     gboolean (*set_platform_mtu)(NMDevice *self, guint32 mtu);
 
     const char *(*get_dhcp_anycast_address)(NMDevice *self);
+
+    /* Optional per-device failure counters. The base class provides
+     * defaults that return 0; device types that maintain failure
+     * statistics (for example Wi-Fi) can override these to expose
+     * device-specific counters via the generic D-Bus properties
+     * NM_DEVICE_FAILURES / NM_DEVICE_ALL_FAILURES.
+     */
+    guint32 (*get_failures)(NMDevice *self);
+
+    guint64 (*get_all_failures)(NMDevice *self);
 } NMDeviceClass;
 
 NMSettings *nm_device_get_settings(NMDevice *self);
