@@ -19165,16 +19165,15 @@ get_property(GObject *object, guint prop_id, GValue *value, GParamSpec *pspec)
     case PROP_METERED:
         g_value_set_uint(value, priv->metered);
         break;
-    case PROP_FAILURES:
-    {
+    case PROP_FAILURES: {
         NMDeviceClass *klass = NM_DEVICE_GET_CLASS(self);
 
         /* Per-device recent failure counter; if the device type doesn't
          * implement the virtual, expose 0 by default. */
         g_value_set_uint(value, klass->get_failures ? klass->get_failures(self) : 0);
         break;
-    case PROP_ALL_FAILURES:
-    {
+    }
+    case PROP_ALL_FAILURES: {
         NMDeviceClass *klass = NM_DEVICE_GET_CLASS(self);
 
         /* Per-device all-time failure counter (uint64); defaults to 0 for
