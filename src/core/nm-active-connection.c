@@ -624,7 +624,17 @@ device_state_changed(NMDevice           *device,
                      gpointer            user_data)
 {
     NMActiveConnection        *self = NM_ACTIVE_CONNECTION(user_data);
-    NMActiveConnectionPrivate *priv = NM_ACTIVE_CONNECTION_GET_PRIVATE(self);
+    NMActiveConnectionPrivate *priv = NM_ACTIVE_CONNECTION_GET_PRIVATE(self); 
+
+
+      _LOGI(LOGD_DEVICE | LOGD_WIFI,
+        "device_state_changed: device %s (%s) state %s -> %s (reason %s)",
+        nm_device_get_iface(device),
+        nm_device_get_type_desc(device),
+        nm_device_state_to_string(old_state),
+        nm_device_state_to_string(new_state),
+        nm_device_state_reason_to_string(reason));
+
 
     /* When already deactivated or before activation, device state changes are useless */
     if (priv->state >= NM_ACTIVE_CONNECTION_STATE_DEACTIVATED)
