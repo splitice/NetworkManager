@@ -819,6 +819,7 @@ nm_device_class_init(NMDeviceClass *klass)
                              "",
                              FALSE,
                              G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+                             
 
     /**
      * NMDevice:nm-plugin-missing:
@@ -1025,6 +1026,23 @@ nm_device_class_init(NMDeviceClass *klass)
                                                      G_MAXUINT32,
                                                      NM_METERED_UNKNOWN,
                                                      G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+
+
+    obj_properties[PROP_FAILURES] = g_param_spec_uint(NM_DEVICE_FAILURES,
+                                                     "",
+                                                     "",
+                                                     0,
+                                                     G_MAXUINT32,
+                                                     0,
+                                                     G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+    obj_properties[PROP_ALL_FAILURES] = g_param_spec_uint64(NM_DEVICE_ALL_FAILURES,
+                                                           "",
+                                                           "",
+                                                           0,
+                                                           G_MAXUINT64,
+                                                           0,
+                                                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+
 
     /**
      * NMDevice:lldp-neighbors:
