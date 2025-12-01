@@ -3661,16 +3661,34 @@ device_state_changed(NMDevice           *device,
         break;
     case NM_DEVICE_STATE_ACTIVATED:
         /* Reset connection failure count on successful activation */
+      _LOGI(LOGD_DEVICE | LOGD_WIFI,
+          "wifi failure stats: activation success, resetting counters: failures=%u all_failures=%" G_GUINT64_FORMAT,
+          priv->connection_failure_count,
+          priv->all_connection_failure_count);
         priv->connection_failure_count = 0;
         /* Note: do NOT reset all_connection_failure_count on success */
         activation_success_handler(device);
         break;
     case NM_DEVICE_STATE_FAILED:
         _indicate_addressing_running_reset(self);
-        /* Increment connection failure count */
+      _LOGI(LOGD_DEVICE | LOGD_WIFI,
+          "wifi failure stats: before increment: failures=%u all_failures=%" G_GUINT64_FORMAT
+          " reason=%s (%d) state %s -> %s",
+          priv->connection_failure_count,
+          priv->all_connection_failure_count,
+          nm_device_state_reason_to_string(reason),
+          reason,
+          nm_device_state_to_string(old_state),
+          nm_device_state_to_string(new_state));
+      /* Increment connection failure count */
         priv->connection_failure_count++;
-    /* Increment all-time failure counter */
-    priv->all_connection_failure_count++;
+      /* Increment all-time failure counter */
+      priv->all_connection_failure_count++;
+
+      _LOGI(LOGD_DEVICE | LOGD_WIFI,
+          "wifi failure stats: after increment: failures=%u all_failures=%" G_GUINT64_FORMAT,
+          priv->connection_failure_count,
+          priv->all_connection_failure_count);
 
         /* Check if BRCM reset is enabled and we've hit 5 failures */
         if (priv->connection_failure_count >= 5) {
