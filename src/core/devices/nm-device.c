@@ -4347,6 +4347,16 @@ _dev_ip_state_check_async_cb_6(gpointer user_data)
 }
 
 static void
+_dev_failures_changed(NMDevice *self)
+{
+    /* Notify listeners that the generic Failures/AllFailures statistics
+     * changed. The concrete counters are maintained by subclasses via the
+     * get_failures/get_all_failures vfuncs. */
+    _notify(self, PROP_FAILURES);
+    _notify(self, PROP_ALL_FAILURES);
+}
+
+static void
 _dev_ip_state_check_async(NMDevice *self, int addr_family)
 {
     NMDevicePrivate *priv = NM_DEVICE_GET_PRIVATE(self);
@@ -14866,8 +14876,10 @@ nm_device_disconnect_active_connection(NMActiveConnection           *active,
             if (device_reason == NM_DEVICE_STATE_REASON_USER_REQUESTED) {
                 NMDeviceClass *klass = NM_DEVICE_GET_CLASS(self);
 
-                if (klass->clear_all_failures)
+                if (klass->clear_all_failures) {
                     klass->clear_all_failures(self);
+                    _dev_failures_changed(self);
+                }
             }
 
             nm_device_state_changed(self, NM_DEVICE_STATE_DEACTIVATING, device_reason);
@@ -17570,6 +17582,7 @@ _set_state_full(NMDevice *self, NMDeviceState state, NMDeviceStateReason reason,
         nm_device_update_metered(self);
         nm_dispatcher_call_device(NM_DISPATCHER_ACTION_UP, self, req, NULL, NULL, NULL);
         _pacrunner_manager_add(self);
+        _dev_failures_changed(self);
         break;
     case NM_DEVICE_STATE_FAILED:
         /* Usually upon failure the activation chain is interrupted in
@@ -17610,6 +17623,7 @@ _set_state_full(NMDevice *self, NMDeviceState state, NMDeviceStateReason reason,
                            self);
             break;
         }
+        _dev_failures_changed(self);
         /* Schedule the transition to DISCONNECTED.  The device can't transition
          * immediately because we can't change states again from the state
          * handler for a variety of reasons.

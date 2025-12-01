@@ -3724,18 +3724,6 @@ device_state_changed(NMDevice           *device,
           priv->connection_failure_count,
           priv->all_connection_failure_count);
 
-                /* Notify that the generic device failure statistics properties have
-                 * changed so that they are propagated over D-Bus and cached by
-                 * libnm clients. This keeps GENERAL.FAILURES and
-                 * GENERAL.ALL-FAILURES in sync with the Wi-Fi counters.
-                 */
-                nm_dbus_object_emit_property_changed(NM_DBUS_OBJECT(device),
-                                                                                         NM_DBUS_INTERFACE_DEVICE,
-                                                                                         NM_DEVICE_FAILURES);
-                nm_dbus_object_emit_property_changed(NM_DBUS_OBJECT(device),
-                                                                                         NM_DBUS_INTERFACE_DEVICE,
-                                                                                         NM_DEVICE_ALL_FAILURES);
-
         /* Check if BRCM reset is enabled and we've hit 5 failures */
         if (priv->connection_failure_count >= 5) {
             NMConnection        *connection;
