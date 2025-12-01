@@ -14858,6 +14858,18 @@ nm_device_disconnect_active_connection(NMActiveConnection           *active,
             if (nm_device_managed_type_is_external(self))
                 nm_device_managed_type_set(self, NM_DEVICE_MANAGED_TYPE_FULL);
 
+            /* For an explicit user-requested disconnect, give the device
+             * type a chance to clear its all-failures counter. Wi-Fi
+             * implements this to reset GENERAL.ALL-FAILURES on
+             * `nmcli c down` + `nmcli c up`.
+             */
+            if (device_reason == NM_DEVICE_STATE_REASON_USER_REQUESTED) {
+                NMDeviceClass *klass = NM_DEVICE_GET_CLASS(self);
+
+                if (klass->clear_all_failures)
+                    klass->clear_all_failures(self);
+            }
+
             nm_device_state_changed(self, NM_DEVICE_STATE_DEACTIVATING, device_reason);
         } else {
             /* @active is the current ac of @self, but it's going down already.
@@ -19743,10 +19755,12 @@ nm_device_class_init(NMDeviceClass *klass)
 
     /* Default failure counters: devices that don't track failures simply
      * report 0. Specific device types (such as Wi-Fi) can override these
-     * virtuals in their class_init to expose device-specific statistics.
+     * virtuals in their class_init to expose device-specific statistics
+     * or to clear their internal counters on request.
      */
-    klass->get_failures     = NULL;
-    klass->get_all_failures = NULL;
+    klass->get_failures      = NULL;
+    klass->get_all_failures  = NULL;
+    klass->clear_all_failures = NULL;
 
     klass->rfkill_type = NM_RFKILL_TYPE_UNKNOWN;
 

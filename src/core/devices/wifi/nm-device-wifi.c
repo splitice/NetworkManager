@@ -213,6 +213,8 @@ static guint32 wifi_get_failures(NMDevice *device);
 
 static guint64 wifi_get_all_failures(NMDevice *device);
 
+static void wifi_clear_all_failures(NMDevice *device);
+
 static guint32
 wifi_get_failures(NMDevice *device)
 {
@@ -229,6 +231,15 @@ wifi_get_all_failures(NMDevice *device)
         return 0;
 
     return nm_device_wifi_get_all_connection_failure_count(NM_DEVICE_WIFI(device));
+}
+
+static void
+wifi_clear_all_failures(NMDevice *device)
+{
+    if (!NM_IS_DEVICE_WIFI(device))
+        return;
+
+    nm_device_wifi_clear_all_connection_failure_count(NM_DEVICE_WIFI(device));
 }
 
 /*****************************************************************************/
@@ -4003,8 +4014,9 @@ nm_device_wifi_class_init(NMDeviceWifiClass *klass)
      * NMDevice virtuals so that the core can read them without depending
      * on global helper symbols or Wi-Fi being built into the main binary.
      */
-    device_class->get_failures     = wifi_get_failures;
-    device_class->get_all_failures = wifi_get_all_failures;
+    device_class->get_failures       = wifi_get_failures;
+    device_class->get_all_failures   = wifi_get_all_failures;
+    device_class->clear_all_failures = wifi_clear_all_failures;
 
     device_class->state_changed = device_state_changed;
 

@@ -441,6 +441,13 @@ typedef struct _NMDeviceClass {
     guint32 (*get_failures)(NMDevice *self);
 
     guint64 (*get_all_failures)(NMDevice *self);
+
+    /* Optional hook to clear the all-failures counter for explicit
+     * user actions (for example "nmcli c down" followed by "nmcli c up").
+     * Device types that don't track a persistent all-failures counter
+     * can leave this NULL.
+     */
+    void (*clear_all_failures)(NMDevice *self);
 } NMDeviceClass;
 
 NMSettings *nm_device_get_settings(NMDevice *self);
