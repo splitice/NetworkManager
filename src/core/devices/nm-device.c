@@ -14859,15 +14859,6 @@ nm_device_disconnect_active_connection(NMActiveConnection           *active,
                 nm_device_managed_type_set(self, NM_DEVICE_MANAGED_TYPE_FULL);
 
             nm_device_state_changed(self, NM_DEVICE_STATE_DEACTIVATING, device_reason);
-            /* If this was a user-requested deactivate (manual up/down), clear the all-failures counter for Wi-Fi devices */
-            if (device_reason == NM_DEVICE_STATE_REASON_USER_REQUESTED) {
-                /* Avoid relying on device-type specific macros here; use the
-                 * device-type accessor so this compiles even if the wifi
-                 * macros are not visible to the compiler for some build
-                 * configurations. */
-                if (nm_device_get_device_type(self) == NM_DEVICE_TYPE_WIFI)
-                    nm_device_wifi_clear_all_connection_failure_count((NMDeviceWifi *) self);
-            }
         } else {
             /* @active is the current ac of @self, but it's going down already.
              * Nothing to do. */
