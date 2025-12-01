@@ -2321,31 +2321,23 @@ nm_device_get_mtu(NMDevice *device)
 guint32
 nm_device_get_failures(NMDevice *device)
 {
-    guint32 failures = 0;
-
     g_return_val_if_fail(NM_IS_DEVICE(device), 0);
 
-    /* Prefer the D-Bus property exposed by the daemon. Fall back to any
-     * cached value if needed, but normally the property will be present.
+    /* Return the cached value kept in sync via the D-Bus meta property
+     * layer (see NML_DBUS_META_PROPERTY_INIT_U("Failures", ...)).
      */
-    g_object_get(device, NM_DEVICE_FAILURES, &failures, NULL);
-
-    return failures;
+    return NM_DEVICE_GET_PRIVATE(device)->failures;
 }
 
 guint64
 nm_device_get_all_failures(NMDevice *device)
 {
-    guint64 all_failures = 0;
-
     g_return_val_if_fail(NM_IS_DEVICE(device), 0);
 
-    /* Prefer the D-Bus property exposed by the daemon. Fall back to any
-     * cached value if needed, but normally the property will be present.
+    /* Return the cached value kept in sync via the D-Bus meta property
+     * layer (see NML_DBUS_META_PROPERTY_INIT_T("AllFailures", ...)).
      */
-    g_object_get(device, NM_DEVICE_ALL_FAILURES, &all_failures, NULL);
-
-    return all_failures;
+    return NM_DEVICE_GET_PRIVATE(device)->all_failures;
 }
 
 /**
