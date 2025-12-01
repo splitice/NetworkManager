@@ -627,8 +627,7 @@ device_state_changed(NMDevice           *device,
     NMActiveConnectionPrivate *priv = NM_ACTIVE_CONNECTION_GET_PRIVATE(self); 
 
 
-      _LOGI(LOGD_DEVICE | LOGD_WIFI,
-        "device_state_changed: device %s (%s) state %s -> %s (reason %s)",
+    _LOGI("device_state_changed: device %s (%s) state %s -> %s (reason %s)",
         nm_device_get_iface(device),
         nm_device_get_type_desc(device),
         nm_device_state_to_string(old_state),

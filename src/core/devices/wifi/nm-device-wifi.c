@@ -3660,13 +3660,32 @@ device_state_changed(NMDevice           *device,
         _indicate_addressing_running_reset(self);
         break;
     case NM_DEVICE_STATE_ACTIVATED:
-        /* Reset connection failure count on successful activation */
-      _LOGI(LOGD_DEVICE | LOGD_WIFI,
-          "wifi failure stats: activation success, resetting counters: failures=%u all_failures=%" G_GUINT64_FORMAT,
-          priv->connection_failure_count,
-          priv->all_connection_failure_count);
-        priv->connection_failure_count = 0;
-        /* Note: do NOT reset all_connection_failure_count on success */
+        /* Only treat this as a full activation success when coming from the
+         * final activation stages, not from early transitions where the
+         * device may still fail IP configuration.
+         */
+        _LOGI(LOGD_DEVICE | LOGD_WIFI,
+              "wifi failure stats: ACTIVATED transition: old=%s new=%s reason=%s (%d) failures=%u all_failures=%" G_GUINT64_FORMAT,
+              nm_device_state_to_string(old_state),
+              nm_device_state_to_string(new_state),
+              nm_device_state_reason_to_string(reason),
+              reason,
+              priv->connection_failure_count,
+              priv->all_connection_failure_count);
+
+        if (old_state >= NM_DEVICE_STATE_IP_CHECK) {
+            _LOGI(LOGD_DEVICE | LOGD_WIFI,
+                  "wifi failure stats: activation success, resetting counters: failures=%u all_failures=%" G_GUINT64_FORMAT,
+                  priv->connection_failure_count,
+                  priv->all_connection_failure_count);
+            priv->connection_failure_count = 0;
+            /* Note: do NOT reset all_connection_failure_count on success */
+        } else {
+            _LOGI(LOGD_DEVICE | LOGD_WIFI,
+                  "wifi failure stats: ACTIVATED but from early state %s; not resetting counters",
+                  nm_device_state_to_string(old_state));
+        }
+
         activation_success_handler(device);
         break;
     case NM_DEVICE_STATE_FAILED:
