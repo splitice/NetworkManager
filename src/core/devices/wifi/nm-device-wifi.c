@@ -3659,35 +3659,50 @@ device_state_changed(NMDevice           *device,
     case NM_DEVICE_STATE_IP_CHECK:
         _indicate_addressing_running_reset(self);
         break;
-    case NM_DEVICE_STATE_ACTIVATED:
-        /* Only treat this as a full activation success when coming from the
-         * final activation stages, not from early transitions where the
-         * device may still fail IP configuration.
-         */
+    case NM_DEVICE_STATE_ACTIVATED: {
+      NMDeviceState dev_state_now;
+
+      /* Only treat this as a full activation success when the device really
+       * finalized IP/DHCP configuration. In particular, we consider success
+       * only if we are coming from SECONDARIES and the device is still in
+       * ACTIVATED state after running the generic activation_success_handler(),
+       * which may still fail if DHCP or other IP work did not complete.
+       */
+      _LOGI(LOGD_DEVICE | LOGD_WIFI,
+          "wifi failure stats: ACTIVATED transition (pre-handler): old=%s new=%s reason=%s (%d) failures=%u all_failures=%" G_GUINT64_FORMAT,
+          nm_device_state_to_string(old_state),
+          nm_device_state_to_string(new_state),
+          nm_device_state_reason_to_string(reason),
+          reason,
+          priv->connection_failure_count,
+          priv->all_connection_failure_count);
+
+      activation_success_handler(device);
+
+      dev_state_now = nm_device_get_state(device);
+
+      _LOGI(LOGD_DEVICE | LOGD_WIFI,
+          "wifi failure stats: ACTIVATED post-handler state=%s failures=%u all_failures=%" G_GUINT64_FORMAT,
+          nm_device_state_to_string(dev_state_now),
+          priv->connection_failure_count,
+          priv->all_connection_failure_count);
+
+      if (old_state == NM_DEVICE_STATE_SECONDARIES && dev_state_now == NM_DEVICE_STATE_ACTIVATED) {
         _LOGI(LOGD_DEVICE | LOGD_WIFI,
-              "wifi failure stats: ACTIVATED transition: old=%s new=%s reason=%s (%d) failures=%u all_failures=%" G_GUINT64_FORMAT,
-              nm_device_state_to_string(old_state),
-              nm_device_state_to_string(new_state),
-              nm_device_state_reason_to_string(reason),
-              reason,
-              priv->connection_failure_count,
-              priv->all_connection_failure_count);
+            "wifi failure stats: full activation (including DHCP) complete, resetting counters: failures=%u all_failures=%" G_GUINT64_FORMAT,
+            priv->connection_failure_count,
+            priv->all_connection_failure_count);
+        priv->connection_failure_count = 0;
+        /* Note: do NOT reset all_connection_failure_count on success */
+      } else {
+        _LOGI(LOGD_DEVICE | LOGD_WIFI,
+            "wifi failure stats: ACTIVATED but not treating as full success (old=%s, current=%s); not resetting counters",
+            nm_device_state_to_string(old_state),
+            nm_device_state_to_string(dev_state_now));
+      }
 
-        if (old_state >= NM_DEVICE_STATE_IP_CHECK) {
-            _LOGI(LOGD_DEVICE | LOGD_WIFI,
-                  "wifi failure stats: activation success, resetting counters: failures=%u all_failures=%" G_GUINT64_FORMAT,
-                  priv->connection_failure_count,
-                  priv->all_connection_failure_count);
-            priv->connection_failure_count = 0;
-            /* Note: do NOT reset all_connection_failure_count on success */
-        } else {
-            _LOGI(LOGD_DEVICE | LOGD_WIFI,
-                  "wifi failure stats: ACTIVATED but from early state %s; not resetting counters",
-                  nm_device_state_to_string(old_state));
-        }
-
-        activation_success_handler(device);
-        break;
+      break;
+    }
     case NM_DEVICE_STATE_FAILED:
         _indicate_addressing_running_reset(self);
       _LOGI(LOGD_DEVICE | LOGD_WIFI,
