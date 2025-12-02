@@ -2488,10 +2488,29 @@ brcm_reset_sdio(NMDeviceWifi *self)
           "Activation: (wifi) attempting BRCM SDIO reset after 5 consecutive failures");
 
     /* Unbind the sunxi-mmc driver */
-    ret = g_file_set_contents("/sys/bus/platform/drivers/sunxi-mmc/unbind",
-                              "1c10000.mmc",
-                              -1,
-                              &error);
+    {
+        FILE *f;
+
+        errno = 0;
+        f = fopen("/sys/bus/platform/drivers/sunxi-mmc/unbind", "w");
+        if (!f) {
+            if (!error && errno) {
+                error = g_error_new_literal(g_quark_from_static_string("g-file-error-quark"),
+                                            errno,
+                                            g_strerror(errno));
+            }
+            ret = FALSE;
+        } else {
+            if (fputs("1c10000.mmc", f) < 0 || fclose(f) == EOF) {
+                if (!error && errno) {
+                    error = g_error_new_literal(
+                        g_quark_from_static_string("g-file-error-quark"), errno, g_strerror(errno));
+                }
+                ret = FALSE;
+            } else
+                ret = TRUE;
+        }
+    }
     if (!ret) {
         _LOGW(LOGD_DEVICE | LOGD_WIFI,
               "Activation: (wifi) failed to unbind sunxi-mmc: %s",
@@ -2504,8 +2523,29 @@ brcm_reset_sdio(NMDeviceWifi *self)
     sleep(1);
 
     /* Bind the sunxi-mmc driver */
-    ret =
-        g_file_set_contents("/sys/bus/platform/drivers/sunxi-mmc/bind", "1c10000.mmc", -1, &error);
+    {
+        FILE *f;
+
+        errno = 0;
+        f = fopen("/sys/bus/platform/drivers/sunxi-mmc/bind", "w");
+        if (!f) {
+            if (!error && errno) {
+                error = g_error_new_literal(g_quark_from_static_string("g-file-error-quark"),
+                                            errno,
+                                            g_strerror(errno));
+            }
+            ret = FALSE;
+        } else {
+            if (fputs("1c10000.mmc", f) < 0 || fclose(f) == EOF) {
+                if (!error && errno) {
+                    error = g_error_new_literal(
+                        g_quark_from_static_string("g-file-error-quark"), errno, g_strerror(errno));
+                }
+                ret = FALSE;
+            } else
+                ret = TRUE;
+        }
+    }
     if (!ret) {
         _LOGW(LOGD_DEVICE | LOGD_WIFI,
               "Activation: (wifi) failed to bind sunxi-mmc: %s",
