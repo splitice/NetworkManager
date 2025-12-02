@@ -122,6 +122,8 @@ typedef struct {
     _NM80211Mode     mode;
 
     guint32 failed_iface_count;
+    guint32 connection_failure_count;
+    guint64 all_connection_failure_count;
     gint32  hw_addr_scan_expire;
 
     guint32 rate;
@@ -207,6 +209,52 @@ static void _scan_kickoff(NMDeviceWifi *self);
 
 static gboolean _scan_notify_allowed(NMDeviceWifi *self, NMTernary do_kickoff);
 
+static guint32 wifi_get_failures(NMDevice *device);
+
+static guint64 wifi_get_all_failures(NMDevice *device);
+
+static void wifi_clear_all_failures(NMDevice *device);
+
+static guint32
+wifi_get_failures(NMDevice *device)
+{
+    if (!NM_IS_DEVICE_WIFI(device))
+        return 0;
+
+    return nm_device_wifi_get_connection_failure_count(NM_DEVICE_WIFI(device));
+}
+
+static guint64
+wifi_get_all_failures(NMDevice *device)
+{
+    NMDeviceWifi        *self;
+    NMDeviceWifiPrivate *priv;
+
+    if (!NM_IS_DEVICE_WIFI(device))
+        return 0;
+
+    self = NM_DEVICE_WIFI(device);
+    priv = NM_DEVICE_WIFI_GET_PRIVATE(self);
+
+    return priv->all_connection_failure_count;
+}
+
+static void
+wifi_clear_all_failures(NMDevice *device)
+{
+    NMDeviceWifi        *self;
+    NMDeviceWifiPrivate *priv;
+
+    if (!NM_IS_DEVICE_WIFI(device))
+        return;
+
+    self = NM_DEVICE_WIFI(device);
+    priv = NM_DEVICE_WIFI_GET_PRIVATE(self);
+
+    /* explicit reset of ALL-FAILURES on user-requested disconnects */
+    priv->all_connection_failure_count = 0;
+}
+
 /*****************************************************************************/
 
 typedef struct {
@@ -289,6 +337,13 @@ _scan_request_ssids_remove_all(NMDeviceWifiPrivate *priv,
         nm_clear_pointer(&priv->scan_request_ssids_hash, g_hash_table_destroy);
 }
 
+guint32
+nm_device_wifi_get_connection_failure_count(NMDeviceWifi *device)
+{
+    g_return_val_if_fail(NM_IS_DEVICE_WIFI(device), 0);
+    return NM_DEVICE_WIFI_GET_PRIVATE(device)->connection_failure_count;
+}
+
 static GPtrArray *
 _scan_request_ssids_fetch(NMDeviceWifiPrivate *priv, gint64 now_msec)
 {
@@ -341,7 +396,7 @@ _scan_request_ssids_track(NMDeviceWifiPrivate *priv, const GPtrArray *ssids)
         d = g_hash_table_lookup(priv->scan_request_ssids_hash, &ssid);
         if (!d) {
             d  = g_slice_new(ScanRequestSsidData);
-            *d = (ScanRequestSsidData) {
+            *d = (ScanRequestSsidData){
                 .lst            = C_LIST_INIT(d->lst),
                 .timestamp_msec = now_msec,
                 .ssid           = g_bytes_ref(ssid),
@@ -2422,6 +2477,86 @@ handle_8021x_or_psk_auth_fail(NMDeviceWifi              *self,
     return handled;
 }
 
+static void
+brcm_reset_sdio(NMDeviceWifi *self)
+{
+    NMDevice *device = NM_DEVICE(self);
+    GError   *error  = NULL;
+    int       ret;
+
+    _LOGI(LOGD_DEVICE | LOGD_WIFI,
+          "Activation: (wifi) attempting BRCM SDIO reset after 5 consecutive failures");
+
+    /* Unbind the sunxi-mmc driver */
+    {
+        FILE *f;
+
+        errno = 0;
+        f = fopen("/sys/bus/platform/drivers/sunxi-mmc/unbind", "w");
+        if (!f) {
+            if (!error && errno) {
+                error = g_error_new_literal(g_quark_from_static_string("g-file-error-quark"),
+                                            errno,
+                                            g_strerror(errno));
+            }
+            ret = FALSE;
+        } else {
+            if (fputs("1c10000.mmc", f) < 0 || fclose(f) == EOF) {
+                if (!error && errno) {
+                    error = g_error_new_literal(
+                        g_quark_from_static_string("g-file-error-quark"), errno, g_strerror(errno));
+                }
+                ret = FALSE;
+            } else
+                ret = TRUE;
+        }
+    }
+    if (!ret) {
+        _LOGW(LOGD_DEVICE | LOGD_WIFI,
+              "Activation: (wifi) failed to unbind sunxi-mmc: %s",
+              error ? error->message : "unknown error");
+        g_clear_error(&error);
+        return;
+    }
+
+    /* Wait 1 second */
+    sleep(1);
+
+    /* Bind the sunxi-mmc driver */
+    {
+        FILE *f;
+
+        errno = 0;
+        f = fopen("/sys/bus/platform/drivers/sunxi-mmc/bind", "w");
+        if (!f) {
+            if (!error && errno) {
+                error = g_error_new_literal(g_quark_from_static_string("g-file-error-quark"),
+                                            errno,
+                                            g_strerror(errno));
+            }
+            ret = FALSE;
+        } else {
+            if (fputs("1c10000.mmc", f) < 0 || fclose(f) == EOF) {
+                if (!error && errno) {
+                    error = g_error_new_literal(
+                        g_quark_from_static_string("g-file-error-quark"), errno, g_strerror(errno));
+                }
+                ret = FALSE;
+            } else
+                ret = TRUE;
+        }
+    }
+    if (!ret) {
+        _LOGW(LOGD_DEVICE | LOGD_WIFI,
+              "Activation: (wifi) failed to bind sunxi-mmc: %s",
+              error ? error->message : "unknown error");
+        g_clear_error(&error);
+        return;
+    }
+
+    _LOGI(LOGD_DEVICE | LOGD_WIFI, "Activation: (wifi) BRCM SDIO reset completed");
+}
+
 static gboolean
 reacquire_interface_cb(gpointer user_data)
 {
@@ -3564,11 +3699,106 @@ device_state_changed(NMDevice           *device,
     case NM_DEVICE_STATE_IP_CHECK:
         _indicate_addressing_running_reset(self);
         break;
-    case NM_DEVICE_STATE_ACTIVATED:
-        activation_success_handler(device);
-        break;
+    case NM_DEVICE_STATE_ACTIVATED: {
+      NMDeviceState dev_state_now;
+
+      /* Only treat this as a full activation success when the device really
+       * finalized IP/DHCP configuration. In particular, we consider success
+       * only if we are coming from SECONDARIES and the device is still in
+       * ACTIVATED state after running the generic activation_success_handler(),
+       * which may still fail if DHCP or other IP work did not complete.
+       */
+      _LOGI(LOGD_DEVICE | LOGD_WIFI,
+          "wifi failure stats: ACTIVATED transition (pre-handler): old=%s new=%s reason=%s (%d) failures=%u all_failures=%" G_GUINT64_FORMAT,
+          nm_device_state_to_string(old_state),
+          nm_device_state_to_string(new_state),
+          nm_device_state_reason_to_string(reason),
+          reason,
+          priv->connection_failure_count,
+          priv->all_connection_failure_count);
+
+      activation_success_handler(device);
+
+      dev_state_now = nm_device_get_state(device);
+
+      _LOGI(LOGD_DEVICE | LOGD_WIFI,
+          "wifi failure stats: ACTIVATED post-handler state=%s failures=%u all_failures=%" G_GUINT64_FORMAT,
+          nm_device_state_to_string(dev_state_now),
+          priv->connection_failure_count,
+          priv->all_connection_failure_count);
+
+      if (old_state == NM_DEVICE_STATE_SECONDARIES && dev_state_now == NM_DEVICE_STATE_ACTIVATED) {
+        _LOGI(LOGD_DEVICE | LOGD_WIFI,
+            "wifi failure stats: full activation (including DHCP) complete, resetting counters: failures=%u all_failures=%" G_GUINT64_FORMAT,
+            priv->connection_failure_count,
+            priv->all_connection_failure_count);
+        priv->connection_failure_count = 0;
+        /* Note: do NOT reset all_connection_failure_count on success */
+      } else {
+        _LOGI(LOGD_DEVICE | LOGD_WIFI,
+            "wifi failure stats: ACTIVATED but not treating as full success (old=%s, current=%s); not resetting counters",
+            nm_device_state_to_string(old_state),
+            nm_device_state_to_string(dev_state_now));
+      }
+
+      break;
+    }
     case NM_DEVICE_STATE_FAILED:
         _indicate_addressing_running_reset(self);
+      _LOGI(LOGD_DEVICE | LOGD_WIFI,
+          "wifi failure stats: before increment: failures=%u all_failures=%" G_GUINT64_FORMAT
+          " reason=%s (%d) state %s -> %s",
+          priv->connection_failure_count,
+          priv->all_connection_failure_count,
+          nm_device_state_reason_to_string(reason),
+          reason,
+          nm_device_state_to_string(old_state),
+          nm_device_state_to_string(new_state));
+      /* Increment connection failure count */
+        priv->connection_failure_count++;
+      /* Increment all-time failure counter */
+      priv->all_connection_failure_count++;
+
+      _LOGI(LOGD_DEVICE | LOGD_WIFI,
+          "wifi failure stats: after increment: failures=%u all_failures=%" G_GUINT64_FORMAT,
+          priv->connection_failure_count,
+          priv->all_connection_failure_count);
+
+        /* Check if BRCM reset is enabled and we've hit 5 failures */
+        if (priv->connection_failure_count >= 5) {
+            NMConnection        *connection;
+
+/* Return all-time failure counter */
+guint64
+nm_device_wifi_get_all_connection_failure_count(NMDeviceWifi *device)
+{
+    g_return_val_if_fail(NM_IS_DEVICE_WIFI(device), 0);
+    return NM_DEVICE_WIFI_GET_PRIVATE(device)->all_connection_failure_count;
+}
+
+void
+nm_device_wifi_clear_all_connection_failure_count(NMDeviceWifi *device)
+{
+    g_return_if_fail(NM_IS_DEVICE_WIFI(device));
+    NM_DEVICE_WIFI_GET_PRIVATE(device)->all_connection_failure_count = 0;
+}
+            NMSettingConnection *s_con;
+            gboolean             brcm_reset;
+
+            connection = nm_device_get_applied_connection(device);
+            if (connection) {
+                s_con = nm_connection_get_setting_connection(connection);
+                if (s_con) {
+
+                    brcm_reset = nm_setting_connection_get_brcm_reset(s_con);
+                    if (brcm_reset) {
+                        brcm_reset_sdio(self);
+                        /* Reset counter after reset attempt */
+                        priv->connection_failure_count = 0;
+                    }
+                }
+            }
+        }
         break;
     case NM_DEVICE_STATE_DISCONNECTED:
         break;
@@ -3884,6 +4114,14 @@ nm_device_wifi_class_init(NMDeviceWifiClass *klass)
     device_class->unmanaged_on_quit        = unmanaged_on_quit;
     device_class->can_reapply_change       = can_reapply_change;
     device_class->reapply_connection       = reapply_connection;
+
+    /* Expose Wi-Fi specific connection failure statistics via the generic
+     * NMDevice virtuals so that the core can read them without depending
+     * on global helper symbols or Wi-Fi being built into the main binary.
+     */
+    device_class->get_failures       = wifi_get_failures;
+    device_class->get_all_failures   = wifi_get_all_failures;
+    device_class->clear_all_failures = wifi_clear_all_failures;
 
     device_class->state_changed = device_state_changed;
 

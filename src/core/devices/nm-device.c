@@ -33,6 +33,9 @@
 #include "libnm-base/nm-ethtool-base.h"
 #include "libnm-core-aux-intern/nm-common-macros.h"
 #include "nm-device-private.h"
+/* Failure counters are provided via virtual methods on NMDeviceClass.
+ * Individual device types (such as Wi-Fi) can override the virtuals to
+ * expose device-specific statistics. The base implementation returns 0. */
 #include "nm-l3cfg.h"
 #include "nm-l3-config-data.h"
 #include "nm-l3-ipv4ll.h"
@@ -390,6 +393,8 @@ NM_GOBJECT_PROPERTIES_DEFINE(NMDevice,
                              PROP_METERED,
                              PROP_LLDP_NEIGHBORS,
                              PROP_REAL,
+                             PROP_FAILURES,
+                             PROP_ALL_FAILURES,
                              PROP_SLAVES,
                              PROP_STATISTICS_REFRESH_RATE_MS,
                              PROP_STATISTICS_TX_BYTES,
@@ -4339,6 +4344,16 @@ static gboolean
 _dev_ip_state_check_async_cb_6(gpointer user_data)
 {
     return _dev_ip_state_check_async_cb(user_data, AF_INET6);
+}
+
+static void
+_dev_failures_changed(NMDevice *self)
+{
+    /* Notify listeners that the generic Failures/AllFailures statistics
+     * changed. The concrete counters are maintained by subclasses via the
+     * get_failures/get_all_failures vfuncs. */
+    _notify(self, PROP_FAILURES);
+    _notify(self, PROP_ALL_FAILURES);
 }
 
 static void
@@ -14905,6 +14920,20 @@ nm_device_disconnect_active_connection(NMActiveConnection           *active,
             if (nm_device_managed_type_is_external(self))
                 nm_device_managed_type_set(self, NM_DEVICE_MANAGED_TYPE_FULL);
 
+            /* For an explicit user-requested disconnect, give the device
+             * type a chance to clear its all-failures counter. Wi-Fi
+             * implements this to reset GENERAL.ALL-FAILURES on
+             * `nmcli c down` + `nmcli c up`.
+             */
+            if (device_reason == NM_DEVICE_STATE_REASON_USER_REQUESTED) {
+                NMDeviceClass *klass = NM_DEVICE_GET_CLASS(self);
+
+                if (klass->clear_all_failures) {
+                    klass->clear_all_failures(self);
+                    _dev_failures_changed(self);
+                }
+            }
+
             nm_device_state_changed(self, NM_DEVICE_STATE_DEACTIVATING, device_reason);
         } else {
             /* @active is the current ac of @self, but it's going down already.
@@ -17605,6 +17634,7 @@ _set_state_full(NMDevice *self, NMDeviceState state, NMDeviceStateReason reason,
         nm_device_update_metered(self);
         nm_dispatcher_call_device(NM_DISPATCHER_ACTION_UP, self, req, NULL, NULL, NULL);
         _pacrunner_manager_add(self);
+        _dev_failures_changed(self);
         break;
     case NM_DEVICE_STATE_FAILED:
         /* Usually upon failure the activation chain is interrupted in
@@ -17645,6 +17675,7 @@ _set_state_full(NMDevice *self, NMDeviceState state, NMDeviceStateReason reason,
                            self);
             break;
         }
+        _dev_failures_changed(self);
         /* Schedule the transition to DISCONNECTED.  The device can't transition
          * immediately because we can't change states again from the state
          * handler for a variety of reasons.
@@ -19200,6 +19231,23 @@ get_property(GObject *object, guint prop_id, GValue *value, GParamSpec *pspec)
     case PROP_METERED:
         g_value_set_uint(value, priv->metered);
         break;
+    case PROP_FAILURES: {
+        NMDeviceClass *klass = NM_DEVICE_GET_CLASS(self);
+
+        /* Per-device recent failure counter; if the device type doesn't
+         * implement the virtual, expose 0 by default. */
+        g_value_set_uint(value, klass->get_failures ? klass->get_failures(self) : 0);
+        break;
+    }
+    case PROP_ALL_FAILURES: {
+        NMDeviceClass *klass = NM_DEVICE_GET_CLASS(self);
+
+        /* Per-device all-time failure counter (uint64); defaults to 0 for
+         * device types that don't track this statistic. */
+        g_value_set_uint64(value,
+                           klass->get_all_failures ? klass->get_all_failures(self) : 0);
+        break;
+    }
     case PROP_LLDP_NEIGHBORS:
         g_value_set_variant(value,
                             priv->lldp_listener
@@ -19240,7 +19288,7 @@ get_property(GObject *object, guint prop_id, GValue *value, GParamSpec *pspec)
 static void
 set_property(GObject *object, guint prop_id, const GValue *value, GParamSpec *pspec)
 {
-    NMDevice        *self = (NMDevice *) object;
+    NMDevice        *self = NM_DEVICE(object);
     NMDevicePrivate *priv = NM_DEVICE_GET_PRIVATE(self);
 
     switch (prop_id) {
@@ -19689,6 +19737,8 @@ static const NMDBusInterfaceInfoExtended interface_info_device = {
                                                            NM_DEVICE_PHYSICAL_PORT_ID),
             NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("Mtu", "u", NM_DEVICE_MTU),
             NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("Metered", "u", NM_DEVICE_METERED),
+            NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("Failures", "u", NM_DEVICE_FAILURES),
+            NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("AllFailures", "t", NM_DEVICE_ALL_FAILURES),
             NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("LldpNeighbors",
                                                            "aa{sv}",
                                                            NM_DEVICE_LLDP_NEIGHBORS),
@@ -19705,6 +19755,8 @@ static const NMDBusInterfaceInfoExtended interface_info_device = {
             NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("HwAddress", "s", NM_DEVICE_HW_ADDRESS),
             NM_DEFINE_DBUS_PROPERTY_INFO_EXTENDED_READABLE("Ports", "ao", NM_DEVICE_PORTS), ), ),
 };
+
+/* (forward declarations moved earlier) */
 
 static const NMDBusInterfaceInfoExtended interface_info_device_statistics = {
     .parent = NM_DEFINE_GDBUS_INTERFACE_INFO_INIT(
@@ -19765,6 +19817,15 @@ nm_device_class_init(NMDeviceClass *klass)
     klass->can_reapply_change            = can_reapply_change;
     klass->reapply_connection            = reapply_connection;
     klass->set_platform_mtu              = set_platform_mtu;
+
+    /* Default failure counters: devices that don't track failures simply
+     * report 0. Specific device types (such as Wi-Fi) can override these
+     * virtuals in their class_init to expose device-specific statistics
+     * or to clear their internal counters on request.
+     */
+    klass->get_failures      = NULL;
+    klass->get_all_failures  = NULL;
+    klass->clear_all_failures = NULL;
 
     klass->rfkill_type = NM_RFKILL_TYPE_UNKNOWN;
 
@@ -19980,6 +20041,20 @@ nm_device_class_init(NMDeviceClass *klass)
                                                      G_MAXUINT32,
                                                      NM_METERED_UNKNOWN,
                                                      G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+    obj_properties[PROP_FAILURES] = g_param_spec_uint(NM_DEVICE_FAILURES,
+                                                     "",
+                                                     "",
+                                                     0,
+                                                     G_MAXUINT32,
+                                                     0,
+                                                     G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+    obj_properties[PROP_ALL_FAILURES] = g_param_spec_uint64(NM_DEVICE_ALL_FAILURES,
+                                                           "",
+                                                           "",
+                                                           0,
+                                                           G_MAXUINT64,
+                                                           0,
+                                                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
     obj_properties[PROP_LLDP_NEIGHBORS] =
         g_param_spec_variant(NM_DEVICE_LLDP_NEIGHBORS,
                              "",
