@@ -247,6 +247,12 @@ _metagen_device_detail_general_get_fcn(NMC_META_GENERIC_INFO_GET_FCN_ARGS)
     case NMC_GENERIC_INFO_TYPE_DEVICE_DETAIL_GENERAL_METERED:
         return nmc_meta_generic_get_str_i18n(nmc_device_metered_to_string(nm_device_get_metered(d)),
                                              get_type);
+    case NMC_GENERIC_INFO_TYPE_DEVICE_DETAIL_GENERAL_FAILURES:
+        /* show failures as a uint */
+        return (*out_to_free = g_strdup_printf("%u", nm_device_get_failures(d)));
+    case NMC_GENERIC_INFO_TYPE_DEVICE_DETAIL_GENERAL_ALL_FAILURES:
+        /* show all-failures as uint64 */
+        return (*out_to_free = g_strdup_printf("%" G_GUINT64_FORMAT, nm_device_get_all_failures(d)));
     default:
         break;
     }
@@ -312,6 +318,10 @@ const NmcMetaGenericInfo
                                        "CON-PATH"),
         _METAGEN_DEVICE_DETAIL_GENERAL(NMC_GENERIC_INFO_TYPE_DEVICE_DETAIL_GENERAL_METERED,
                                        "METERED"),
+    _METAGEN_DEVICE_DETAIL_GENERAL(NMC_GENERIC_INFO_TYPE_DEVICE_DETAIL_GENERAL_FAILURES,
+                       "FAILURES"),
+    _METAGEN_DEVICE_DETAIL_GENERAL(NMC_GENERIC_INFO_TYPE_DEVICE_DETAIL_GENERAL_ALL_FAILURES,
+                       "ALL-FAILURES"),
 };
 
 /*****************************************************************************/

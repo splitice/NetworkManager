@@ -58,6 +58,8 @@ _NM_DEPRECATED_SYNC_WRITABLE_PROPERTY
 #define NM_DEVICE_INTERFACE_FLAGS       "interface-flags"
 #define NM_DEVICE_HW_ADDRESS            "hw-address"
 #define NM_DEVICE_PORTS                 "ports"
+#define NM_DEVICE_FAILURES              "failures"
+#define NM_DEVICE_ALL_FAILURES          "all-failures"
 
 /**
  * NMDevice:
@@ -143,6 +145,7 @@ const char          *nm_device_get_hw_address(NMDevice *device);
 NMDeviceCapabilities nm_device_get_capabilities(NMDevice *device);
 gboolean             nm_device_get_managed(NMDevice *device);
 
+
 NM_AVAILABLE_IN_1_34
 const GPtrArray *nm_device_get_ports(NMDevice *device);
 
@@ -185,6 +188,14 @@ NM_AVAILABLE_IN_1_2
 GPtrArray *nm_device_get_lldp_neighbors(NMDevice *device);
 NM_AVAILABLE_IN_1_22
 NMDeviceInterfaceFlags nm_device_get_interface_flags(NMDevice *device);
+
+/* Number of recent connection failures (Wi-Fi specific). */
+NM_AVAILABLE_IN_1_54
+guint32 nm_device_get_failures(NMDevice *device);
+
+/* Number of all-time connection failures (Wi-Fi specific). */
+NM_AVAILABLE_IN_1_54
+guint64 nm_device_get_all_failures(NMDevice *device);
 
 char **nm_device_disambiguate_names(NMDevice **devices, int num_devices);
 NM_AVAILABLE_IN_1_2
