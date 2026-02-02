@@ -3045,6 +3045,32 @@ supplicant_connection_timeout_cb(gpointer user_data)
         if (handle_auth_or_fail(self, req, new_secrets))
             _LOGW(LOGD_DEVICE | LOGD_WIFI, "Activation: (wifi) asking for new secrets");
         else {
+            /* Increment connection failure count */
+            priv->connection_failure_count++;
+            /* Increment all-time failure counter */
+            priv->all_connection_failure_count++;
+
+            /* Check if BRCM reset is enabled and we've hit 5 failures */
+            if (priv->connection_failure_count >= 5) {
+                NMConnection        *connection;
+                NMSettingConnection *s_con;
+                gboolean             brcm_reset;
+
+                connection = nm_device_get_applied_connection(device);
+                if (connection) {
+                    s_con = nm_connection_get_setting_connection(connection);
+                    if (s_con) {
+
+                        brcm_reset = nm_setting_connection_get_brcm_reset(s_con);
+                        if (brcm_reset) {
+                            brcm_reset_sdio(self);
+                            /* Reset counter after reset attempt */
+                            priv->connection_failure_count = 0;
+                        }
+                    }
+                }
+            }
+
             nm_device_state_changed(device,
                                     NM_DEVICE_STATE_FAILED,
                                     NM_DEVICE_STATE_REASON_NO_SECRETS);
@@ -3651,6 +3677,23 @@ activation_success_handler(NMDevice *device)
     priv->scan_periodic_next_msec    = 0;
 }
 
+
+
+/* Return all-time failure counter */
+guint64
+nm_device_wifi_get_all_connection_failure_count(NMDeviceWifi *device)
+{
+    g_return_val_if_fail(NM_IS_DEVICE_WIFI(device), 0);
+    return NM_DEVICE_WIFI_GET_PRIVATE(device)->all_connection_failure_count;
+}
+
+void
+nm_device_wifi_clear_all_connection_failure_count(NMDeviceWifi *device)
+{
+    g_return_if_fail(NM_IS_DEVICE_WIFI(device));
+    NM_DEVICE_WIFI_GET_PRIVATE(device)->all_connection_failure_count = 0;
+}
+
 static void
 device_state_changed(NMDevice           *device,
                      NMDeviceState       new_state,
@@ -3767,21 +3810,6 @@ device_state_changed(NMDevice           *device,
         /* Check if BRCM reset is enabled and we've hit 5 failures */
         if (priv->connection_failure_count >= 5) {
             NMConnection        *connection;
-
-/* Return all-time failure counter */
-guint64
-nm_device_wifi_get_all_connection_failure_count(NMDeviceWifi *device)
-{
-    g_return_val_if_fail(NM_IS_DEVICE_WIFI(device), 0);
-    return NM_DEVICE_WIFI_GET_PRIVATE(device)->all_connection_failure_count;
-}
-
-void
-nm_device_wifi_clear_all_connection_failure_count(NMDeviceWifi *device)
-{
-    g_return_if_fail(NM_IS_DEVICE_WIFI(device));
-    NM_DEVICE_WIFI_GET_PRIVATE(device)->all_connection_failure_count = 0;
-}
             NMSettingConnection *s_con;
             gboolean             brcm_reset;
 
